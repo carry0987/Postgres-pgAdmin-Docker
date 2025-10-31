@@ -1,0 +1,56 @@
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: pg-db
+    environment:
+      # Use .env for secrets in real deployments
+      POSTGRES_USER: ${POSTGRES_USER:-appuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-appdb}
+      PGDATA: /var/lib/postgresql/18/docker
+      TZ: Asia/Taipei
+      # Ensure UTF-8 DB encoding (default is fine, but explicit is clearer)
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - pgdata:/var/lib/postgresql
+    ports:
+      - 5432:5432 # expose to host; remove if only internal access is needed
+    healthcheck:
+      # Checks if Postgres accepts connections
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-appuser} -d ${POSTGRES_DB:-appdb}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - pgnet
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pg-admin
+    depends_on:
+      db:
+        condition: service_healthy # wait for postgres to be ready
+    environment:
+      # Initial admin login for pgAdmin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-changeme}
+      PGADMIN_LISTEN_PORT: 5050
+      TZ: Asia/Taipei
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      # Optional: auto-register servers (see servers.json below)
+      - ./servers.json:/pgadmin4/servers.json:ro
+    ports:
+      - 5050:5050
+    restart: unless-stopped
+    networks:
+      - pgnet
+
+volumes:
+  pgdata:
+  pgadmin_data:
+
+networks:
+  pgnet:
+    driver: bridge
